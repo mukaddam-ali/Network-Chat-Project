@@ -15,9 +15,9 @@ Open http://localhost:3000 in several browser tabs/windows (or from other device
 
 1. **Two clients through a server** – every client connects to the one server, which forwards each message.
 2. **More than two clients** – any number of clients can connect concurrently; messages are broadcast to everyone in the sender's group.
-3. **Multiple groups** – join a group at login, type a group name in the sidebar to create or switch groups (groups are not listed, so they stay private by name). The server broadcasts only to clients in the same group. Only one server runs (it also serves the web page).
+3. **Multiple groups** – every group is listed for everyone (🔒 = password protected). Clicking a protected group asks for its password; only members can see its messages. A client can be in several groups at once and switch between them. The server broadcasts only to members of the message's group. Only one server runs (it also serves the web page). `General` is public and always exists.
 
 ## Protocol (JSON over WebSocket)
 
-Client → server: `join {name, group}`, `switch {group}`, `message {text}`
-Server → client: `joined`, `message`, `system`, `groups`, `members`, `error`
+Client → server: `login {name}`, `create {group, password?}`, `join {group, password?}`, `leave {group}`, `message {group, text}`
+Server → client: `welcome`, `joined {history}`, `left`, `message`, `system`, `groups`, `members`, `error`

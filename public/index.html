@@ -12,11 +12,10 @@
   <section id="login" class="card login">
     <div class="logo">💬</div>
     <h1>Network Chat</h1>
-    <p class="sub">Pick a name and a group to start chatting</p>
+    <p class="sub">Pick a name to start chatting</p>
     <form id="loginForm">
       <input id="nameInput" placeholder="Your name" maxlength="20" autocomplete="off" required>
-      <input id="groupInput" placeholder="Group (default: General)" maxlength="24" autocomplete="off">
-      <button type="submit">Join chat</button>
+      <button type="submit">Enter</button>
       <p id="loginError" class="error"></p>
     </form>
   </section>
@@ -24,17 +23,19 @@
   <main id="app" class="card app hidden">
     <aside class="sidebar">
       <div class="me"><span id="meAvatar" class="avatar"></span><div><b id="meName"></b><small id="status">connected</small></div></div>
-      <h3>Your group</h3>
-      <div id="currentGroup" class="curgroup"></div>
-      <h3>Join another group</h3>
+      <h3>Groups</h3>
+      <ul id="groupList"></ul>
+      <h3>Create a group</h3>
       <form id="newGroupForm" class="newgroup">
-        <input id="newGroupInput" placeholder="Type group name…" maxlength="24" autocomplete="off">
-        <button title="Join">→</button>
+        <input id="newGroupInput" placeholder="Group name" maxlength="24" autocomplete="off" required>
+        <input id="newPassInput" type="text" placeholder="Password (optional)" maxlength="30" autocomplete="off">
+        <button>Create</button>
       </form>
+      <p id="groupError" class="error"></p>
     </aside>
 
     <section class="chat">
-      <header><h2 id="groupTitle"></h2><span id="memberCount" class="pill"></span></header>
+      <header><h2 id="groupTitle">Join a group</h2><span id="memberCount" class="pill"></span><button id="leaveBtn" class="ghost hidden">Leave</button></header>
       <div id="messages" class="messages"></div>
       <form id="sendForm" class="composer">
         <input id="textInput" placeholder="Type a message…" maxlength="1000" autocomplete="off">
@@ -47,6 +48,16 @@
       <ul id="memberList"></ul>
     </aside>
   </main>
+
+  <dialog id="pwDialog" class="card">
+    <form id="pwForm">
+      <h2 id="pwTitle">🔒 Protected group</h2>
+      <p class="sub">Enter the password to join and see its messages</p>
+      <input id="pwInput" type="password" placeholder="Password" autocomplete="off" required>
+      <p id="pwError" class="error"></p>
+      <div class="row"><button type="button" id="pwCancel" class="ghost">Cancel</button><button type="submit">Join</button></div>
+    </form>
+  </dialog>
 
   <script src="app.js"></script>
 </body>
