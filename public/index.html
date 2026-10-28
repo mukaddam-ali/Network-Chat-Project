@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Network Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg"></div>
+
+  <section id="login" class="card login">
+    <div class="logo">💬</div>
+    <h1>Network Chat</h1>
+    <p class="sub">Pick a name and a group to start chatting</p>
+    <form id="loginForm">
+      <input id="nameInput" placeholder="Your name" maxlength="20" autocomplete="off" required>
+      <input id="groupInput" placeholder="Group (default: General)" maxlength="24" autocomplete="off">
+      <button type="submit">Join chat</button>
+      <p id="loginError" class="error"></p>
+    </form>
+  </section>
+
+  <main id="app" class="card app hidden">
+    <aside class="sidebar">
+      <div class="me"><span id="meAvatar" class="avatar"></span><div><b id="meName"></b><small id="status">connected</small></div></div>
+      <h3>Groups</h3>
+      <ul id="groupList"></ul>
+      <form id="newGroupForm" class="newgroup">
+        <input id="newGroupInput" placeholder="New group…" maxlength="24" autocomplete="off">
+        <button title="Create / join">＋</button>
+      </form>
+    </aside>
+
+    <section class="chat">
+      <header><h2 id="groupTitle"></h2><span id="memberCount" class="pill"></span></header>
+      <div id="messages" class="messages"></div>
+      <form id="sendForm" class="composer">
+        <input id="textInput" placeholder="Type a message…" maxlength="1000" autocomplete="off">
+        <button type="submit">Send</button>
+      </form>
+    </section>
+
+    <aside class="members">
+      <h3>Online in group</h3>
+      <ul id="memberList"></ul>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
