@@ -20,10 +20,6 @@ h3{margin:18px 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercas
 ul{list-style:none;margin:0;padding:0}
 .me{display:flex;gap:10px;align-items:center}.me small{display:block;color:#34d399}
 .avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:700;flex:none}
-#groupList li{display:flex;justify-content:space-between;padding:9px 12px;border-radius:10px;cursor:pointer;color:var(--mute)}
-#groupList li:hover{background:var(--panel)}
-#groupList li.active{background:linear-gradient(135deg,#7c5cff55,#22d3ee33);color:var(--text)}
-#groupList .n{font-size:12px;background:#fff2;border-radius:99px;padding:1px 8px}
 .newgroup{display:flex;gap:6px;margin-top:12px}.newgroup input{margin:0}.newgroup button{padding:0 14px}
 #memberList li{display:flex;gap:8px;align-items:center;padding:6px 0}
 #memberList .avatar{width:26px;height:26px;font-size:12px}
@@ -41,3 +37,5 @@ ul{list-style:none;margin:0;padding:0}
 .composer{display:flex;gap:10px;padding:14px 18px;border-top:1px solid var(--line)}.composer input{margin:0}
 @keyframes pop{from{opacity:0;transform:translateY(6px) scale(.98)}}
 @media(max-width:800px){.app{grid-template-columns:1fr}.sidebar,.members{display:none}}
+
+.curgroup{padding:9px 12px;border-radius:10px;background:linear-gradient(135deg,#7c5cff55,#22d3ee33)}

@@ -35,15 +35,6 @@ function broadcastGroup(group, obj) {
   for (const ws of groups.get(group) || []) send(ws, obj);
 }
 
-function groupsSnapshot() {
-  return [...groups].map(([name, set]) => ({ name, count: set.size }));
-}
-
-function pushGroupList() {
-  const msg = { type: 'groups', groups: groupsSnapshot() };
-  for (const ws of wss.clients) if (ws.user) send(ws, msg);
-}
-
 function pushMembers(group) {
   const members = [...(groups.get(group) || [])].map((w) => w.user.name);
   broadcastGroup(group, { type: 'members', group, members });
@@ -85,13 +76,11 @@ wss.on('connection', (ws) => {
       if (taken) return send(ws, { type: 'error', text: 'That name is already in use' });
       ws.user = { name, group: null };
       enter(ws, group);
-      pushGroupList();
     } else if (m.type === 'switch' && ws.user) {
       const group = clean(m.group, 24);
       if (!group || group === ws.user.group) return;
       leave(ws);
       enter(ws, group);
-      pushGroupList();
     } else if (m.type === 'message' && ws.user) {
       const text = clean(m.text, MAX_TEXT);
       if (!text) return;
@@ -102,7 +91,6 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (!ws.user || !ws.user.group) return;
     leave(ws);
-    pushGroupList();
   });
 });
 

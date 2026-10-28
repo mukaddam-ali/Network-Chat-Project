@@ -24,11 +24,12 @@
   <main id="app" class="card app hidden">
     <aside class="sidebar">
       <div class="me"><span id="meAvatar" class="avatar"></span><div><b id="meName"></b><small id="status">connected</small></div></div>
-      <h3>Groups</h3>
-      <ul id="groupList"></ul>
+      <h3>Your group</h3>
+      <div id="currentGroup" class="curgroup"></div>
+      <h3>Join another group</h3>
       <form id="newGroupForm" class="newgroup">
-        <input id="newGroupInput" placeholder="New group…" maxlength="24" autocomplete="off">
-        <button title="Create / join">＋</button>
+        <input id="newGroupInput" placeholder="Type group name…" maxlength="24" autocomplete="off">
+        <button title="Join">→</button>
       </form>
     </aside>
 

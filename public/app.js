@@ -22,9 +22,9 @@ function handle(m) {
     current = m.group;
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('meName').textContent = me; avatar($('meAvatar'), me);
-    $('groupTitle').textContent = '# ' + m.group; $('messages').innerHTML = '';
+    $('groupTitle').textContent = '# ' + m.group; $('currentGroup').textContent = '# ' + m.group; $('messages').innerHTML = '';
     $('textInput').focus();
-  } else if (m.type === 'groups') renderGroups(m.groups);
+  }
   else if (m.type === 'members') renderMembers(m.members);
   else if (m.type === 'message') addMessage(m);
   else if (m.type === 'system') {
@@ -49,17 +49,6 @@ function addMessage(m) {
   if (m.name === me) { const t2 = document.createElement('time'); t2.textContent = fmt(m.time); d.append(body, t2); }
   else d.append(who, body);
   add(d);
-}
-
-function renderGroups(groups) {
-  const ul = $('groupList'); ul.innerHTML = '';
-  for (const g of groups) {
-    const li = document.createElement('li'); if (g.name === current) li.className = 'active';
-    const a = document.createElement('span'); a.textContent = '# ' + g.name;
-    const n = document.createElement('span'); n.className = 'n'; n.textContent = g.count;
-    li.append(a, n); li.onclick = () => ws.send(JSON.stringify({ type: 'switch', group: g.name }));
-    ul.appendChild(li);
-  }
 }
 
 function renderMembers(list) {
