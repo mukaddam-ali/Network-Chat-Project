@@ -1,131 +1,236 @@
-// One server: serves the web client over HTTP and handles chat over WebSocket.
-//   Step 1/2: any number of clients chat through the server
-//   Step 3: groups - a message is broadcast only to the members of its group
-// Groups are listed for everyone; a protected group needs its password to join.
+// Chat server.
+// One program does two jobs on the same port:
+//   1. serves the web page (HTTP)
+//   2. handles the chat (WebSocket)
+//
+// Idea: the server keeps a list of groups. Each group has its members.
+// When someone sends a message, the server sends it only to the members
+// of that group.
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 
-const PORT = process.env.PORT || 3000;
-const PUBLIC = path.join(__dirname, 'public');
-const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
-const MAX_TEXT = 1000;
-const HISTORY = 100;
+const PORT = 3000;
+const PUBLIC_FOLDER = path.join(__dirname, 'public');
+const MAX_HISTORY = 100; // how many old messages a new member can see
 
-const httpServer = http.createServer((req, res) => {
-  const file = req.url === '/' ? '/index.html' : req.url.split('?')[0];
-  const full = path.join(PUBLIC, path.normalize(file));
-  if (!full.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
-  fs.readFile(full, (err, data) => {
-    if (err) { res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(full)] || 'application/octet-stream' });
+// ---------- 1. Web server: gives the browser the files in /public ----------
+
+const fileTypes = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
+
+const httpServer = http.createServer(function (req, res) {
+  let url = req.url === '/' ? '/index.html' : req.url;
+  let filePath = path.join(PUBLIC_FOLDER, path.normalize(url));
+
+  // don't let anyone read files outside the public folder
+  if (!filePath.startsWith(PUBLIC_FOLDER)) {
+    res.writeHead(403);
+    return res.end();
+  }
+
+  fs.readFile(filePath, function (err, data) {
+    if (err) {
+      res.writeHead(404);
+      return res.end('Not found');
+    }
+    res.writeHead(200, { 'Content-Type': fileTypes[path.extname(filePath)] || 'text/plain' });
     res.end(data);
   });
 });
 
+// ---------- 2. Chat server (WebSocket) ----------
+
 const wss = new WebSocketServer({ server: httpServer });
 
-// name -> { password: string|null, members: Set<ws>, history: [] }
-const groups = new Map([['General', { password: null, members: new Set(), history: [] }]]);
+// All groups. The key is the group name, the value looks like:
+//   { password: '123' or null, members: [sockets...], history: [messages...] }
+const groups = {
+  General: { password: null, members: [], history: [] },
+};
 
-const send = (ws, obj) => ws.readyState === 1 && ws.send(JSON.stringify(obj));
-const now = () => new Date().toISOString();
-const clean = (s, max) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, max);
-const findGroup = (name) => [...groups.keys()].find((k) => k.toLowerCase() === name.toLowerCase());
-
-function broadcastGroup(name, obj) {
-  for (const ws of groups.get(name).members) send(ws, obj);
+// small helpers
+function sendTo(client, data) {
+  if (client.readyState === 1) {
+    client.send(JSON.stringify(data));
+  }
 }
 
-function pushGroupList() {
-  const list = [...groups].map(([name, g]) => ({ name, count: g.members.size, locked: !!g.password }));
-  for (const ws of wss.clients) if (ws.user) send(ws, { type: 'groups', groups: list });
+function sendToGroup(groupName, data) {
+  groups[groupName].members.forEach(function (client) {
+    sendTo(client, data);
+  });
 }
 
-function pushMembers(name) {
-  const g = groups.get(name);
-  broadcastGroup(name, { type: 'members', group: name, members: [...g.members].map((w) => w.user.name) });
+function cleanText(text, maxLength) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
-function systemMsg(name, text) {
-  const m = { type: 'system', group: name, text, time: now() };
-  groups.get(name).history.push(m);
-  broadcastGroup(name, m);
+// find a group ignoring upper/lower case ("study" finds "Study")
+function findGroupName(name) {
+  return Object.keys(groups).find(function (g) {
+    return g.toLowerCase() === name.toLowerCase();
+  });
 }
 
-function enter(ws, name) {
-  const g = groups.get(name);
-  if (g.members.has(ws)) return send(ws, { type: 'joined', group: name, history: g.history });
-  g.members.add(ws);
-  ws.user.groups.add(name);
-  send(ws, { type: 'joined', group: name, history: g.history });
-  systemMsg(name, `${ws.user.name} joined the group`);
-  pushMembers(name);
+function nameIsTaken(name) {
+  let taken = false;
+  wss.clients.forEach(function (c) {
+    if (c.userName && c.userName.toLowerCase() === name.toLowerCase()) taken = true;
+  });
+  return taken;
 }
 
-function leave(ws, name) {
-  const g = groups.get(name);
-  if (!g || !g.members.delete(ws)) return;
-  ws.user.groups.delete(name);
-  if (g.members.size === 0 && name !== 'General') return void groups.delete(name);
-  systemMsg(name, `${ws.user.name} left the group`);
-  pushMembers(name);
+// Tell every logged-in user which groups exist (so the list is always up to date)
+function sendGroupListToEveryone() {
+  const list = Object.keys(groups).map(function (name) {
+    return {
+      name: name,
+      count: groups[name].members.length,
+      locked: groups[name].password !== null,
+    };
+  });
+  wss.clients.forEach(function (c) {
+    if (c.userName) sendTo(c, { type: 'groups', groups: list });
+  });
 }
 
-wss.on('connection', (ws) => {
-  ws.on('message', (raw) => {
-    let m;
-    try { m = JSON.parse(raw); } catch { return; }
+function sendMemberList(groupName) {
+  const names = groups[groupName].members.map(function (c) { return c.userName; });
+  sendToGroup(groupName, { type: 'members', group: groupName, members: names });
+}
 
-    if (m.type === 'login' && !ws.user) {
-      const name = clean(m.name, 20);
-      if (!name) return send(ws, { type: 'error', scope: 'login', text: 'Name required' });
-      const taken = [...wss.clients].some((c) => c.user && c.user.name.toLowerCase() === name.toLowerCase());
-      if (taken) return send(ws, { type: 'error', scope: 'login', text: 'That name is already in use' });
-      ws.user = { name, groups: new Set() };
-      send(ws, { type: 'welcome', name });
-      enter(ws, 'General');
-      pushGroupList();
+// "Ali joined the group" style messages
+function sendSystemMessage(groupName, text) {
+  const msg = { type: 'system', group: groupName, text: text, time: new Date().toISOString() };
+  groups[groupName].history.push(msg);
+  sendToGroup(groupName, msg);
+}
+
+function joinGroup(client, groupName) {
+  const group = groups[groupName];
+
+  // already inside? just show it again
+  if (group.members.includes(client)) {
+    return sendTo(client, { type: 'joined', group: groupName, history: group.history });
+  }
+
+  group.members.push(client);
+  client.myGroups.push(groupName);
+
+  // the new member receives the old messages of the group
+  sendTo(client, { type: 'joined', group: groupName, history: group.history });
+  sendSystemMessage(groupName, client.userName + ' joined the group');
+  sendMemberList(groupName);
+}
+
+function leaveGroup(client, groupName) {
+  const group = groups[groupName];
+  if (!group || !group.members.includes(client)) return;
+
+  group.members = group.members.filter(function (c) { return c !== client; });
+  client.myGroups = client.myGroups.filter(function (g) { return g !== groupName; });
+
+  // delete empty groups (but never "General")
+  if (group.members.length === 0 && groupName !== 'General') {
+    delete groups[groupName];
+    return;
+  }
+  sendSystemMessage(groupName, client.userName + ' left the group');
+  sendMemberList(groupName);
+}
+
+// ---------- What happens when a client connects ----------
+
+wss.on('connection', function (client) {
+
+  client.on('message', function (raw) {
+    let msg;
+    try {
+      msg = JSON.parse(raw);
+    } catch (e) {
+      return; // ignore broken data
+    }
+
+    // --- login: the first thing every client must do ---
+    if (msg.type === 'login' && !client.userName) {
+      const name = cleanText(msg.name, 20);
+      if (!name) {
+        return sendTo(client, { type: 'error', scope: 'login', text: 'Name required' });
+      }
+      if (nameIsTaken(name)) {
+        return sendTo(client, { type: 'error', scope: 'login', text: 'That name is already in use' });
+      }
+      client.userName = name;
+      client.myGroups = [];
+      sendTo(client, { type: 'welcome', name: name });
+      joinGroup(client, 'General'); // everyone starts in General
+      sendGroupListToEveryone();
       return;
     }
-    if (!ws.user) return;
 
-    if (m.type === 'create') {
-      const name = clean(m.group, 24);
+    if (!client.userName) return; // not logged in yet
+
+    // --- create a new group ---
+    if (msg.type === 'create') {
+      const name = cleanText(msg.group, 24);
       if (!name) return;
-      if (findGroup(name)) return send(ws, { type: 'error', scope: 'group', text: 'A group with that name already exists' });
-      groups.set(name, { password: String(m.password || '') || null, members: new Set(), history: [] });
-      enter(ws, name);
-      pushGroupList();
-    } else if (m.type === 'join') {
-      const name = findGroup(clean(m.group, 24));
-      if (!name) return send(ws, { type: 'error', scope: 'group', text: 'Group not found' });
-      const g = groups.get(name);
-      if (g.password && g.password !== String(m.password || '') && !g.members.has(ws))
-        return send(ws, { type: 'error', scope: 'group', text: 'Wrong password' });
-      enter(ws, name);
-      pushGroupList();
-    } else if (m.type === 'leave') {
-      const name = findGroup(clean(m.group, 24));
-      if (name) { leave(ws, name); send(ws, { type: 'left', group: name }); pushGroupList(); }
-    } else if (m.type === 'message') {
-      const name = findGroup(clean(m.group, 24));
-      const text = clean(m.text, MAX_TEXT);
-      if (!name || !text || !groups.get(name).members.has(ws)) return;
-      const msg = { type: 'message', group: name, name: ws.user.name, text, time: now() };
-      const g = groups.get(name);
-      g.history.push(msg);
-      if (g.history.length > HISTORY) g.history.shift();
-      broadcastGroup(name, msg);
+      if (findGroupName(name)) {
+        return sendTo(client, { type: 'error', scope: 'group', text: 'A group with that name already exists' });
+      }
+      groups[name] = { password: msg.password ? String(msg.password) : null, members: [], history: [] };
+      joinGroup(client, name);
+      sendGroupListToEveryone();
+    }
+
+    // --- join an existing group (password needed if it has one) ---
+    else if (msg.type === 'join') {
+      const name = findGroupName(cleanText(msg.group, 24) || '');
+      if (!name) {
+        return sendTo(client, { type: 'error', scope: 'group', text: 'Group not found' });
+      }
+      const group = groups[name];
+      const alreadyIn = group.members.includes(client);
+      if (group.password && !alreadyIn && group.password !== String(msg.password || '')) {
+        return sendTo(client, { type: 'error', scope: 'group', text: 'Wrong password' });
+      }
+      joinGroup(client, name);
+      sendGroupListToEveryone();
+    }
+
+    // --- leave a group ---
+    else if (msg.type === 'leave') {
+      const name = findGroupName(cleanText(msg.group, 24) || '');
+      if (name) {
+        leaveGroup(client, name);
+        sendTo(client, { type: 'left', group: name });
+        sendGroupListToEveryone();
+      }
+    }
+
+    // --- chat message: goes ONLY to the members of that group ---
+    else if (msg.type === 'message') {
+      const name = findGroupName(cleanText(msg.group, 24) || '');
+      const text = cleanText(msg.text, 1000);
+      if (!name || !text) return;
+      if (!groups[name].members.includes(client)) return; // must be a member
+
+      const chatMessage = { type: 'message', group: name, name: client.userName, text: text, time: new Date().toISOString() };
+      groups[name].history.push(chatMessage);
+      if (groups[name].history.length > MAX_HISTORY) groups[name].history.shift();
+      sendToGroup(name, chatMessage);
     }
   });
 
-  ws.on('close', () => {
-    if (!ws.user) return;
-    for (const name of [...ws.user.groups]) leave(ws, name);
-    pushGroupList();
+  // when the user closes the page: remove them from all their groups
+  client.on('close', function () {
+    if (!client.userName) return;
+    client.myGroups.slice().forEach(function (g) { leaveGroup(client, g); });
+    sendGroupListToEveryone();
   });
 });
 
-httpServer.listen(PORT, () => console.log(`Chat server running on http://localhost:${PORT}`));
+httpServer.listen(PORT, function () {
+  console.log('Chat server running on http://localhost:' + PORT);
+});
