@@ -1,7 +1,7 @@
 import java.io.*;
 import java.net.*;
 
-// العميل (على CMD). بيتصل بالسيرفر، وبتكتب رسالة بتوصل لكل اللي بمجموعتك.
+// Client (CMD). Connects to the server; what you type goes to everyone in your group.
 public class Client {
 
     public static void main(String[] args) throws IOException {
@@ -22,7 +22,7 @@ public class Client {
         out.println(name);
         out.println(group);
 
-        // خيط بيضل يقرا اللي بيجي من السيرفر ويطبعه
+        // thread that keeps reading from the server and printing
         new Thread(() -> {
             try {
                 String line;
@@ -35,7 +35,7 @@ public class Client {
             System.exit(0);
         }).start();
 
-        // اللي بتكتبه بيروح للسيرفر
+        // what you type is sent to the server
         String text;
         while ((text = keyboard.readLine()) != null) {
             if (text.equals("/quit")) break;
