@@ -1,7 +1,8 @@
 import java.io.*;
 import java.net.*;
 
-// العميل (على CMD). بيتصل بالسيرفر، وبتكتب رسالة بتوصل لكل اللي بمجموعتك.
+// Client (runs in CMD). Connects to the server, sends its name and group,
+// then everything you type is sent to everyone in your group.
 public class Client {
 
     public static void main(String[] args) throws IOException {
@@ -15,14 +16,14 @@ public class Client {
         System.out.print("Group name: ");
         String group = keyboard.readLine().trim();
 
-        Socket socket = new Socket(host, 5000);
+        Socket socket = new Socket(host, 5000);   // connect to the server (TCP)
         BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 
-        out.println(name);
-        out.println(group);
+        out.println(name);    // tell the server who we are
+        out.println(group);   // and which group we want
 
-        // خيط بيضل يقرا اللي بيجي من السيرفر ويطبعه
+        // thread that keeps reading messages from the server and prints them
         new Thread(() -> {
             try {
                 String line;
@@ -35,7 +36,7 @@ public class Client {
             System.exit(0);
         }).start();
 
-        // اللي بتكتبه بيروح للسيرفر
+        // main thread: send what the user types (/quit to exit)
         String text;
         while ((text = keyboard.readLine()) != null) {
             if (text.equals("/quit")) break;
