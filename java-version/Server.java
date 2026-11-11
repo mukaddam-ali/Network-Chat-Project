@@ -2,22 +2,24 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
-// Server: runs once, all clients connect to it over TCP.
-// When a client sends a message, the server forwards it to all clients in the same group.
+// Server: runs once. Every client connects to it over TCP.
+// When a client sends a message, the server forwards it
+// only to the clients that are in the same group.
 public class Server {
 
-    static List<Handler> clients = new ArrayList<>();   // all connected clients
+    // all connected clients
+    static List<Handler> clients = new ArrayList<>();
 
     public static void main(String[] args) throws IOException {
         ServerSocket server = new ServerSocket(5000);
         System.out.println("Server running on port 5000");
         while (true) {
-            Socket socket = server.accept();            // wait for a new client
-            new Handler(socket).start();                // one thread per client
+            Socket socket = server.accept();   // wait for a new client
+            new Handler(socket).start();       // one thread per client
         }
     }
 
-    // send a message to everyone in the group
+    // send a message to every client in the given group
     static synchronized void broadcast(String group, String message) {
         for (Handler c : clients) {
             if (c.group.equals(group)) {
@@ -29,7 +31,7 @@ public class Server {
     static synchronized void add(Handler c) { clients.add(c); }
     static synchronized void remove(Handler c) { clients.remove(c); }
 
-    // each client runs in its own thread
+    // Handler: one per client, runs in its own thread
     static class Handler extends Thread {
         Socket socket;
         BufferedReader in;
@@ -44,15 +46,21 @@ public class Server {
 
         public void run() {
             try {
-                name = in.readLine();      // first line: name
-                group = in.readLine();     // second line: group
+                name = in.readLine();    // first line from client: name
+                group = in.readLine();   // second line from client: group
+                if (name == null || group == null) {
+                    socket.close();      // client left before sending its info
+                    return;
+                }
                 add(this);
                 broadcast(group, "*** " + name + " joined " + group);
+
                 String line;
                 while ((line = in.readLine()) != null) {
                     broadcast(group, name + ": " + line);
                 }
             } catch (IOException e) {
+                // client disconnected
             }
             if (group != null) {
                 remove(this);
