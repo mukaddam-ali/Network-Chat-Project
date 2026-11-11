@@ -22,7 +22,12 @@ public class Client {
         String host = keyboard.readLine().trim();
         if (host.isEmpty()) host = "localhost";
 
-        socket = new Socket(host, 5000);            // هون بنتصل بالسيرفر (TCP)
+        try {
+            socket = new Socket(host, 5000);        // هون بنتصل بالسيرفر (TCP)
+        } catch (IOException e) {
+            System.out.println("Cannot connect to " + host + ":5000. Is the server running?");
+            return;
+        }
         in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
         out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"), true);
 
@@ -31,6 +36,10 @@ public class Client {
             System.out.print("Your name: ");
             out.println("LOGIN|" + keyboard.readLine());
             String answer = in.readLine();
+            if (answer == null) {
+                System.out.println("Server closed the connection.");
+                return;
+            }
             if (answer.startsWith("WELCOME")) break;
             System.out.println(answer.split("\\|")[1]);   // مثلاً: الاسم مستخدم
         }
@@ -88,9 +97,12 @@ public class Client {
                 System.out.println("You are not in that group.");
             }
         } else if (cmd.equals("/leave")) {
-            out.println("LEAVE|" + (arg1.isEmpty() ? current : arg1));
+            String target = arg1.isEmpty() ? current : arg1;
+            if (target == null) System.out.println("You are not in a group.");
+            else out.println("LEAVE|" + target);
         } else if (cmd.equals("/who")) {
-            System.out.println("Online in " + current + ": " + members.get(current));
+            if (current == null) System.out.println("You are not in a group.");
+            else System.out.println("Online in " + current + ": " + members.get(current));
         } else if (cmd.equals("/help")) {
             printHelp();
         } else if (cmd.equals("/quit")) {
